@@ -3,106 +3,160 @@ using System.Collections;
 
 public class GravityController : MonoBehaviour
 {
-    [Header("Settings")]
-    public float gravityMagnitude = 9.81f;
-    public float rotationSpeed = 5f;
-    public GameObject hologramPrefab;
-    
-    private Rigidbody rb;
-    private Vector3 currentGravityDir = Vector3.down;
-    private Vector3 targetGravityDir = Vector3.down;
-    private bool isSwitchingGravity = false;
-    
-    private GameObject hologramInstance;
-    private bool showHologram = false;
+    [Header("References")]
+    [SerializeField] private Rigidbody rb;
+    [SerializeField] private Transform headPivot;
+    [SerializeField] private Transform hologram;   
 
-    void Start()
-    {
-        rb = GetComponent<Rigidbody>();
-        
-        // Setup Hologram
-        if (hologramPrefab != null)
-        {
-            hologramInstance = Instantiate(hologramPrefab, transform.position, transform.rotation);
-            hologramInstance.SetActive(false);
-        }
-    }
+    [Header("Gravity")]
+    [SerializeField] private float gravitySpeed = 15f;
+    [SerializeField] private float hologramDistance = 1.5f;
 
-    void Update()
+    public Vector3 CurrentGravityDirection { get; private set; } = Vector3.down;
+
+    private Vector3 selectedGravity;
+    private Quaternion targetRotation;
+    private bool previewing;
+
+    void Awake()
     {
-        HandleInput();
-        UpdateHologram();
+        if (!rb) rb = GetComponent<Rigidbody>();
+
+        rb.useGravity = false;
+        rb.freezeRotation = true;
+
+        if (hologram)
+            hologram.gameObject.SetActive(false);
     }
 
     void FixedUpdate()
     {
-        // Apply custom gravity
-        rb.AddForce(currentGravityDir * gravityMagnitude, ForceMode.Acceleration);
-
-        // Smoothly rotate player to align with new Up direction
-        Vector3 targetUp = -currentGravityDir;
-        Quaternion targetRotation = Quaternion.FromToRotation(transform.up, targetUp) * transform.rotation;
-        transform.rotation = Quaternion.Slerp(transform.rotation, targetRotation, rotationSpeed * Time.fixedDeltaTime);
+        rb.velocity +=
+            CurrentGravityDirection.normalized *
+            gravitySpeed *
+            Time.fixedDeltaTime;
     }
 
-    void HandleInput()
+    void Update()
     {
-        if (isSwitchingGravity) return;
+        HandlePreviewInput();
 
-        Vector3 newDir = Vector3.zero;
-        Transform cam = Camera.main.transform;
-
-        // Determine direction based on Camera perspective
-        if (Input.GetKey(KeyCode.UpArrow)) newDir = cam.forward;
-        else if (Input.GetKey(KeyCode.DownArrow)) newDir = -cam.forward;
-        else if (Input.GetKey(KeyCode.LeftArrow)) newDir = -cam.right;
-        else if (Input.GetKey(KeyCode.RightArrow)) newDir = cam.right;
-
-        if (newDir != Vector3.zero)
-        {
-            // Snap to nearest cardinal axis relative to world or current orientation
-            targetGravityDir = newDir.normalized;
-            showHologram = true;
-        }
-        else
-        {
-            showHologram = false;
-        }
-
-        if (showHologram && Input.GetKeyDown(KeyCode.Return))
-        {
-            ChangeGravity(targetGravityDir);
-        }
+        if (previewing && Input.GetKeyDown(KeyCode.Return))
+            ApplyGravity();
     }
 
-    void UpdateHologram()
-    {
-        if (hologramInstance == null) return;
-
-        if (showHologram)
-        {
-            hologramInstance.SetActive(true);
-            hologramInstance.transform.position = transform.position;
-            
-            // Align hologram feet to the NEW wall (New Gravity Down)
-            Vector3 holoUp = targetGravityDir;
-            Quaternion targetRot = Quaternion.FromToRotation(transform.up, holoUp) * transform.rotation;
-            hologramInstance.transform.rotation = targetRot;
-        }
-        else
-        {
-            hologramInstance.SetActive(false);
-        }
-    }
-
-    void ChangeGravity(Vector3 newDir)
-    {
-        currentGravityDir = newDir;
-        showHologram = false;
-    }
     
-    public Vector3 GetGravityDirection()
+    // PREVIEW INPUT
+    
+    void HandlePreviewInput()
     {
-        return currentGravityDir;
+        previewing = false;
+
+        if (Input.GetKey(KeyCode.UpArrow))
+            Preview(Vector3.down);
+        else if (Input.GetKey(KeyCode.DownArrow))
+            Preview(Vector3.up);
+        else if (Input.GetKey(KeyCode.LeftArrow))
+            Preview(Vector3.right);
+        else if (Input.GetKey(KeyCode.RightArrow))
+            Preview(Vector3.left);
+        else
+            ClearPreview();
+    }
+
+    
+    // PREVIEW
+    
+    void Preview(Vector3 gravityDir)
+    {
+        previewing = true;
+        selectedGravity = gravityDir.normalized;
+
+        Vector3 up = -selectedGravity;
+
+        targetRotation = Quaternion.LookRotation(
+            Vector3.ProjectOnPlane(transform.forward, up),
+            up
+        );
+
+        ShowHologram();
+    }
+
+    void ShowHologram()
+    {
+        if (!hologram) return;
+
+        hologram.gameObject.SetActive(true);
+
+        Vector3 dir = -selectedGravity;
+
+        hologram.position =
+            transform.position + dir * hologramDistance;
+
+        hologram.rotation = Quaternion.LookRotation(
+            Vector3.ProjectOnPlane(Vector3.forward, -dir),
+            -dir
+        );
+    }
+
+    void ClearPreview()
+    {
+        previewing = false;
+
+        if (hologram)
+            hologram.gameObject.SetActive(false);
+    }
+
+    
+    // APPLY GRAVITY
+    
+    void ApplyGravity()
+    {
+        CurrentGravityDirection = selectedGravity;
+
+        rb.velocity = Vector3.zero;
+
+        StopAllCoroutines();
+        StartCoroutine(RotateAroundHead());
+
+        ClearPreview();
+
+        GameManager.Instance?.IgnoreFallCheck(0.4f);
+    }
+
+    IEnumerator RotateAroundHead()
+    {
+        Quaternion startRot = transform.rotation;
+        Vector3 pivot = headPivot.position;
+
+        float duration = 0.35f;
+        float t = 0f;
+
+        while (t < 1f)
+        {
+            t += Time.deltaTime / duration;
+
+            Quaternion newRot =
+                Quaternion.Slerp(startRot, targetRotation, t);
+
+            Vector3 delta =
+                newRot * Quaternion.Inverse(transform.rotation) * Vector3.forward;
+
+            Vector3 axis = Vector3.Cross(transform.forward, delta);
+
+            if (axis.sqrMagnitude > 0.0001f)
+            {
+                transform.RotateAround(
+                    pivot,
+                    axis.normalized,
+                    Vector3.Angle(transform.forward, delta)
+                );
+            }
+
+            transform.rotation = newRot;
+            yield return null;
+        }
+
+        transform.rotation = targetRotation;
     }
 }

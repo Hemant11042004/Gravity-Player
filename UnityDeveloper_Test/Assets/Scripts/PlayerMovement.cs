@@ -38,7 +38,7 @@ public class PlayerMovement : MonoBehaviour
         rb = GetComponent<Rigidbody>();
 
         rb.useGravity = false;
-        rb.freezeRotation = true; // we rotate manually
+        rb.freezeRotation = true; 
         rb.interpolation = RigidbodyInterpolation.Interpolate;
         if (!gravityController)
         gravityController = GetComponent<GravityController>();
@@ -63,9 +63,8 @@ public class PlayerMovement : MonoBehaviour
         Move();
     }
 
-    // --------------------
+    
     // INPUT
-    // --------------------
     void ReadInput()
     {
         horizontalInput = 0f;
@@ -85,9 +84,9 @@ public class PlayerMovement : MonoBehaviour
 
 
 
-    // --------------------
+    
     // MOVEMENT (W / S)
-    // --------------------
+
    void Move()
     {
     if (gravityController == null) return;
@@ -127,18 +126,12 @@ public class PlayerMovement : MonoBehaviour
 
     rb.velocity = planarVelocity + gravityVelocity;
     }
-
-
-
-
-
-
-    // --------------------
+    
     // ROTATION (A / D)
-    // --------------------
+    
     void Rotate()
     {
-    // A / D rotation (UNCHANGED)
+    // A / D rotation
     if (Mathf.Abs(horizontalInput) > 0.01f)
     {
         rotatingBackward = false;
@@ -148,7 +141,7 @@ public class PlayerMovement : MonoBehaviour
         return;
     }
 
-    // S → rotate backward (FIXED)
+    // S → rotate backward
     if (verticalInput < -0.1f)
     {
         // Capture backward rotation ONCE
@@ -173,12 +166,12 @@ public class PlayerMovement : MonoBehaviour
     }
 
 
-    // --------------------
+    
     // JUMP (SPACE)
-    // --------------------
+    
    void Jump()
     {
-    if (!isGrounded) return;              // ❗ hard lock
+    if (!isGrounded) return;              // hard lock
     if (!Input.GetKeyDown(KeyCode.Space)) return;
 
     isGrounded = false;                   // lock jump immediately
@@ -204,9 +197,9 @@ public class PlayerMovement : MonoBehaviour
 
 
 
-    // --------------------
+
     // GROUND CHECK
-    // --------------------
+
     void CheckGrounded()
     {
         if (groundIgnoreTimer > 0f)

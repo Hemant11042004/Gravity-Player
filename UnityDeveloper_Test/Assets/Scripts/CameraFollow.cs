@@ -10,8 +10,6 @@ public class CameraFollow : MonoBehaviour
 
     private float yaw;
     private float pitch;
-
-    // 🔹 ADDED: cache camera transform when moving backward
     private Vector3 cachedPosition;
     private Quaternion cachedRotation;
     private bool freezeCamera = false;
@@ -26,10 +24,10 @@ public class CameraFollow : MonoBehaviour
     {
         if (!target) return;
 
-        // 🔹 ADDED: detect backward movement (S key)
+        // detect backward movement (S key)
         bool movingBackward = Input.GetKey(KeyCode.S);
 
-        // 🔹 ADDED: freeze camera while moving backward
+        // freeze camera while moving backward
         if (movingBackward)
         {
             if (!freezeCamera)
@@ -41,15 +39,11 @@ public class CameraFollow : MonoBehaviour
 
             transform.position = cachedPosition;
             transform.rotation = cachedRotation;
-            return; // ❗ skip normal follow
+            return; // skip normal follow
         }
 
-        // 🔹 ADDED: resume camera follow
-        freezeCamera = false;
-
-        // ----------------------------
-        // ORIGINAL CAMERA LOGIC (UNCHANGED)
-        // ----------------------------
+        // resume camera follow
+        freezeCamera = false;        
         yaw += Input.GetAxis("Mouse X") * mouseSensitivity;
         pitch -= Input.GetAxis("Mouse Y") * mouseSensitivity;
         pitch = Mathf.Clamp(pitch, -40f, 80f);
